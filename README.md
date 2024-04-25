@@ -1,2 +1,1 @@
-# Demo
-This is my first repository 
+Email classifier with sstreamlit
