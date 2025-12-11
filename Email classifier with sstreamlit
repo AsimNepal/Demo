@@ -1,152 +1,134 @@
-# import streamlit as st
-
-# # BMI calculation function
-# def calculate_bmi(weight, height):
-#     if height != 0:
-#         height_m = height / 100  # Convert height from cm to meters
-#         bmi = weight / (height_m ** 2)
-#         return bmi
-#     else:
-#         return 0
-
-# # Streamlit app
-# def main():
-#     st.title("BMI Calculator")
-
-#     # User input
-#     weight = st.number_input("Enter your weight (in kg)")
-#     height = st.number_input("Enter your height (in cm)")
-
-#     # Calculate BMI
-#     bmi = calculate_bmi(weight, height)
-
-#     # Display result
-#     st.subheader("BMI Result")
-#     st.write("Weight:", weight, "kg")
-#     st.write("Height:", height, "cm")
-    
-#     if bmi != 0:
-#         st.write("BMI:", bmi)
-#     else:
-#         st.write("Please enter a non-zero height value.")
-
-#     # BMI Categories
-#     st.subheader("BMI Categories")
-#     st.write("Underweight: BMI < 18.5")
-#     st.write("Normal weight: 18.5 <= BMI < 24.9")
-#     st.write("Overweight: 25 <= BMI < 29.9")
-#     st.write("Obesity: BMI >= 30")
-
-# if __name__ == "__main__":
-#     main()
-
-
-# import streamlit as st
-# from sklearn.feature_extraction.text import CountVectorizer
-# from sklearn.naive_bayes import MultinomialNB
-
-# # Function to train the Naive Bayes model
-# def train_model(data, labels):
-#     vectorizer = CountVectorizer()
-#     X = vectorizer.fit_transform(data)
-#     model = MultinomialNB()
-#     model.fit(X, labels)
-#     return model, vectorizer
-
-# # Function to predict spam or ham
-# def predict(model, vectorizer, message):
-#     X = vectorizer.transform([message])
-#     prediction = model.predict(X)
-#     return prediction[0]
-
-# # Streamlit app
-# def main():
-#     st.title("Spam or Ham Detection")
-
-#     # Train the model
-#     data = [
-#         "Hey, how are you?",
-#         "Free money! Click here now!",
-#         "I'm going to the park.",
-#         "Congratulations! You've won a prize!",
-#         "Reminder: Meeting tomorrow at 2 PM."
-#     ]
-#     labels = ["ham", "spam", "ham", "spam", "ham"]
-#     model, vectorizer = train_model(data, labels)
-
-#     # User input
-#     message = st.text_input("Enter a message")
-
-#     # Predict
-#     if st.button("Predict"):
-#         prediction = predict(model, vectorizer, message)
-#         st.write("Prediction:", prediction)
-
-# if __name__ == "__main__":
-#     main()
-
-
-
-
 import streamlit as st
 import pickle
 import os
+import numpy as np
+import pandas as pd
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.naive_bayes import MultinomialNB
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score
+import re
+import string
 
-# Function to train the Naive Bayes model and save it as a pickle file
-def train_model(data, labels):
+# ---------------------------
+# Text Preprocessing
+# ---------------------------
+def clean_text(text):
+    text = text.lower()
+    text = re.sub(r"http\S+", "", text)
+    text = re.sub(r"\d+", "", text)
+    text = text.translate(str.maketrans("", "", string.punctuation))
+    text = text.strip()
+    return text
+
+# ---------------------------
+# Model Training + Saving
+# ---------------------------
+def train_and_save_model():
+    data = [
+        "Hey, how are you?",
+        "Free money! Click here now!",
+        "I'm going to the park.",
+        "Congratulations! You've won a prize!",
+        "Reminder: Meeting tomorrow at 2 PM.",
+        "WIN a brand new car!!!",
+        "Claim your FREE gift now!",
+        "Lunch at 1?",
+        "Call me when you are free.",
+        "URGENT: Your account needs verification!"
+    ]
+
+    labels = ["ham", "spam", "ham", "spam", "ham", "spam", "spam", "ham", "ham", "spam"]
+
+    df = pd.DataFrame({"text": data, "label": labels})
+    df["clean_text"] = df["text"].apply(clean_text)
+
     vectorizer = CountVectorizer()
-    X = vectorizer.fit_transform(data)
+    X = vectorizer.fit_transform(df["clean_text"])
+    y = df["label"]
+
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
     model = MultinomialNB()
-    model.fit(X, labels)
+    model.fit(X_train, y_train)
 
-    # Save the model as a pickle file
-    with open('spam_ham_model.pkl', 'wb') as file:
-        pickle.dump((model, vectorizer), file)
+    preds = model.predict(X_test)
+    accuracy = accuracy_score(y_test, preds)
 
-    return model, vectorizer
+    with open('spam_ham_model.pkl', 'wb') as f:
+        pickle.dump((model, vectorizer, accuracy), f)
 
-# Function to load the trained model from the pickle file
+    return model, vectorizer, accuracy
+
+# ---------------------------
+# Load Model
+# ---------------------------
 def load_model():
-    with open('spam_ham_model.pkl', 'rb') as file:
-        model, vectorizer = pickle.load(file)
-    return model, vectorizer
+    with open('spam_ham_model.pkl', 'rb') as f:
+        model, vectorizer, accuracy = pickle.load(f)
+    return model, vectorizer, accuracy
 
-# Function to predict spam or ham
+# ---------------------------
+# Prediction
+# ---------------------------
 def predict(model, vectorizer, message):
-    X = vectorizer.transform([message])
-    prediction = model.predict(X)
-    return prediction[0]
+    processed = clean_text(message)
+    X = vectorizer.transform([processed])
+    prediction = model.predict(X)[0]
+    return prediction
 
-# Streamlit app
+# ---------------------------
+# Streamlit App
+# ---------------------------
 def main():
-    st.title("Spam or Ham Detection")
-    st.balloons() 
 
-    # Check if the model pickle file exists
-    if not os.path.exists('spam_ham_model.pkl'):
-        # Train the model and create the pickle file
-        data = [
-            "Hey, how are you?",
-            "Free money! Click here now!",
-            "I'm going to the park.",
-            "Congratulations! You've won a prize!",
-            "Reminder: Meeting tomorrow at 2 PM."
-        ]
-        labels = ["ham", "spam", "ham", "spam", "ham"]
-        model, vectorizer = train_model(data, labels)
+    st.set_page_config(page_title="Spam/Ham Classifier", layout="wide")
+
+    st.title("📩 Spam or Ham Detection App")
+    st.write("This is an advanced machine learning app that predicts if a message is **spam or ham**.")
+
+    st.sidebar.header("🔧 Model Settings")
+
+    # Load or Train Model
+    if not os.path.exists("spam_ham_model.pkl"):
+        st.sidebar.warning("Model not found. Training a new one...")
+        model, vectorizer, accuracy = train_and_save_model()
     else:
-        # Load the model from the pickle file
-        model, vectorizer = load_model()
+        model, vectorizer, accuracy = load_model()
 
-    # User input
-    message = st.text_input("Enter a message")
+    st.sidebar.success(f"Model Loaded ✓\nAccuracy: **{accuracy*100:.2f}%**")
 
-    # Predict
+    st.balloons()
+
+    # Input box
+    message = st.text_area("✍️ Enter your message below:", height=120)
+
+    # Prediction button
     if st.button("Predict"):
-        prediction = predict(model, vectorizer, message)
-        st.write("Prediction:", prediction)
+        if message.strip() == "":
+            st.error("Please enter a message before predicting!")
+        else:
+            prediction = predict(model, vectorizer, message)
+
+            if prediction == "spam":
+                st.error("🚨 **Result: SPAM**")
+            else:
+                st.success("✅ **Result: HAM (Not Spam)**")
+
+    # Extra info
+    st.subheader("ℹ️ How it Works")
+    st.write("""
+    - Text is cleaned (lowercase, punctuation removed, etc.)
+    - Converted into numerical vectors using **CountVectorizer**
+    - Classified using **Multinomial Naive Bayes**
+    """)
+
+    st.subheader("📊 Model Training Data")
+    st.write("""
+    - Small sample dataset (spam + non-spam messages)
+    - Uses automatic training on first launch
+    """)
+
 
 if __name__ == "__main__":
     main()
